@@ -25,7 +25,7 @@ class ProductoController {
         try {
             const { id } = req.params;
             const modProducto = req.body;
-            const modificar = await Producto.findByIdAndUpdate(id, modProducto, { new: true });
+            const modificar = await Producto.findByIdAndUpdate(id, modProducto, { returnDocument: 'after' });
             res.status(200).json({ message: "Datos actualizados correctamente", modificar });
         } catch (error) {
             console.log(error);

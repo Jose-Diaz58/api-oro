@@ -12,6 +12,7 @@ const ventaSchema = new mongoose.Schema({
   productos: [{
     productoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Producto' },
     nombre: String,
+    variante: String, // NUEVO: Para saber si fueron rojos, verdes, de fresa, etc.
     cantidad: Number,
     precio: Number
   }],

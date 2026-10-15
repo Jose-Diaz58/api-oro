@@ -11,7 +11,8 @@ const productoSchema = new mongoose.Schema({
   porcion: { type: String },
   descripcion: { type: String },
   disponible: { type: Boolean, default: true }, // Control del Toggle en el admin
-  imagen: { type: String }
+  imagen: { type: String },
+  variantes: [{ type: String }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Producto', productoSchema);
