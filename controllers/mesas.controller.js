@@ -1,5 +1,5 @@
 const Mesa = require("../models/mesas.model");
-
+//probando pa hacer una rama y no cagarla
 class MesaController {
     static createMesas = async (req, res) => {
         try {
