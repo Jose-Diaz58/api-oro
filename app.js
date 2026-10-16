@@ -9,6 +9,9 @@ const ProductoRouter = require("./routes/producto.routes");
 const VentaRouter = require ("./routes/venta.routes")
 const MesasRouter=require("./routes/mesa.routes")
 const UsuarioRouter= require("./routes/usuario.routes")
+const CategoriaRouter = require("./routes/categoria.routes")
+const ExtraRouter = require("./routes/extra.routes")
+const ConfiguracionRouter = require("./routes/configuracion.routes")
 //Variable que obtiene los valores del express
 const app = express();
 
@@ -24,5 +27,8 @@ app.use("/api/", ProductoRouter);
 app.use("/api", VentaRouter)
 app.use("/api",MesasRouter)
 app.use("/api", UsuarioRouter)
+app.use("/api", CategoriaRouter)
+app.use("/api", ExtraRouter)
+app.use("/api", ConfiguracionRouter)
 
 module.exports = app;

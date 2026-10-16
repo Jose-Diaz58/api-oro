@@ -9,10 +9,11 @@ const ventaSchema = new mongoose.Schema({
   },
   mesa: { type: String },
   notas: { type: String },
+  pago: { type: String, enum: ['Efectivo', 'Tarjeta'], default: 'Efectivo' },
   productos: [{
     productoId: { type: mongoose.Schema.Types.ObjectId, ref: 'Producto' },
     nombre: String,
-    variante: String, // NUEVO: Para saber si fueron rojos, verdes, de fresa, etc.
+    variante: String, // Para saber si fueron rojos, verdes, de fresa, etc.
     cantidad: Number,
     precio: Number
   }],

@@ -1,4 +1,5 @@
 const Producto = require("../models/producto.model");
+const Extra = require("../models/extra.model");
 
 class ProductoController {
     static createProducto = async(req, res) => {
@@ -37,6 +38,8 @@ class ProductoController {
         try {
             const { id } = req.params;
             const productoEliminado = await Producto.findByIdAndDelete(id);
+            // Quita el producto de los extras que lo tenían asignado
+            await Extra.updateMany({}, { $pull: { productos: id } });
             res.status(200).json(productoEliminado);
         } catch (error) {
             return res.status(400).send({ message: "Error al eliminar el producto" });
