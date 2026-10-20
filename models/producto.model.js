@@ -2,11 +2,8 @@ const mongoose = require('mongoose');
 
 const productoSchema = new mongoose.Schema({
   nombre: { type: String, required: true },
-  categoria: { 
-    type: String, 
-    required: true,
-    enum: ['Cafés Calientes', 'Fríos', 'Jugos y Licuados', 'Nuevos Platillos', 'Desayunos Tec']
-  },
+  // Ya no es un enum fijo: las categorías se crean desde el panel de administración
+  categoria: { type: String, required: true },
   precio: { type: Number, required: true },
   porcion: { type: String },
   descripcion: { type: String },

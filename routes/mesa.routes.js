@@ -3,10 +3,10 @@ const MesaController= require("../controllers/mesas.controller")
 
 const api =express.Router();
 
-api.post("/mesa/create", MesaController.createMesas);
-api.get("/mesa/mostrar", MesaController.mostrarMesas);
-api.put("/mesa/modificar/:id", MesaController.actualizarMesas);
-api.delete("/mesa/eliminar/:id", MesaController.eliminarMesa);
+api.post("/mesas/crear", MesaController.createMesas);
+api.get("/mesas/buscar", MesaController.mostrarMesas);
+api.put("/mesas/actualizar/:id", MesaController.actualizarMesas);
+api.delete("/mesas/eliminar/:id", MesaController.eliminarMesa);
 
 
 
