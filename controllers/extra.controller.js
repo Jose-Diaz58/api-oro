@@ -29,7 +29,7 @@ class ExtraController {
             if (nombre !== undefined) cambios.nombre = nombre;
             if (precio !== undefined) cambios.precio = precio;
             if (productos !== undefined) cambios.productos = productos;
-
+            
             const extra = await Extra.findByIdAndUpdate(req.params.id, cambios, { returnDocument: 'after' });
             if (!extra) return res.status(404).send({ message: "El extra no existe" });
             res.status(200).json(extra);

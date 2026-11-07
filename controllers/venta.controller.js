@@ -8,7 +8,7 @@ const rangoDelDia = (fecha) => {
     const fin = new Date(fecha);
     fin.setDate(fin.getDate() + 1);
     return { inicio, fin };
-}
+};
 
 class VentaController {
     static registrarVenta = async (req, res) => {
@@ -17,24 +17,41 @@ class VentaController {
             const nuevaVenta = await Venta.create(dVenta);
             res.status(200).json(nuevaVenta);
         } catch (error) {
+            console.error(error);
             res.status(400).send({ message: "Error al registrar la venta" });
         }
     }
 
-    // Lista para el panel de admin: ?fecha=2026-10-15 (opcional). Sin fecha: las 50 más recientes (o ?limite=N)
+    // Lista optimizada con paginación real: ?fecha=2026-10-15 (opcional) &pagina=1 &limite=20
     static listarVentas = async (req, res) => {
         try {
-            const { fecha } = req.query;
-            let ventas;
+            const { fecha, pagina = 1, limite = 20 } = req.query;
+            
+            const query = {};
             if (fecha) {
                 const { inicio, fin } = rangoDelDia(fecha);
-                ventas = await Venta.find({ createdAt: { $gte: inicio, $lt: fin } }).sort({ createdAt: -1 });
-            } else {
-                // Sin fecha: las más recientes. ?limite=300 para el historial (máximo 500)
-                const limite = Math.min(Math.max(parseInt(req.query.limite) || 50, 1), 500);
-                ventas = await Venta.find().sort({ createdAt: -1 }).limit(limite);
+                query.createdAt = { $gte: inicio, $lt: fin };
             }
-            res.status(200).json(ventas);
+
+            const pageNum = Math.max(parseInt(pagina), 1);
+            const limitNum = Math.min(Math.max(parseInt(limite), 1), 100); // Límite seguro por página (máx 100)
+            const skip = (pageNum - 1) * limitNum;
+
+            // Consultamos en paralelo los datos y el total de documentos para la paginación
+            const [ventas, total] = await Promise.all([
+                Venta.find(query).sort({ createdAt: -1 }).skip(skip).limit(limitNum),
+                Venta.countDocuments(query)
+            ]);
+
+            res.status(200).json({
+                ventas,
+                paginacion: {
+                    totalRegistros: total,
+                    paginaActual: pageNum,
+                    totalPaginas: Math.ceil(total / limitNum),
+                    porPagina: limitNum
+                }
+            });
         } catch (error) {
             console.error(error);
             res.status(400).send({ message: "Error al obtener los pedidos" });
@@ -46,7 +63,6 @@ class VentaController {
         try {
             const { estado } = req.body;
             if (!ESTADOS.includes(estado)) return res.status(400).send({ message: "Estado no válido" });
-
             const venta = await Venta.findByIdAndUpdate(req.params.id, { estado }, { returnDocument: 'after' });
             if (!venta) return res.status(404).send({ message: "El pedido no existe" });
             res.status(200).json(venta);
@@ -59,9 +75,10 @@ class VentaController {
     static obtenerVentasPorFecha = async (req, res) => {
         try {
             const { inicio, fin } = rangoDelDia(req.query.fecha); // Ejemplo: 2026-05-08
-            const ventas = await Venta.find({ createdAt: { $gte: inicio, $lt: fin } });
+            const ventas = await Venta.find({ createdAt: { $gte: inicio, $lt: fin } }).sort({ createdAt: -1 });
             res.status(200).json(ventas);
         } catch (error) {
+            console.error(error);
             res.status(400).send({ message: "Error al obtener las ventas" });
         }
     }
@@ -72,6 +89,7 @@ class VentaController {
             const resultado = await Venta.deleteMany({ createdAt: { $gte: inicio, $lt: fin } });
             res.status(200).json({ message: "Ventas eliminadas correctamente", resultado });
         } catch (error) {
+            console.error(error);
             res.status(400).send({ message: "Error al eliminar las ventas" });
         }
     }

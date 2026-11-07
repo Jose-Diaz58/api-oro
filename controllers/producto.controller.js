@@ -7,7 +7,7 @@ const imagenDemasiadoGrande = (imagen) =>
     typeof imagen === 'string' && imagen.startsWith('data:') && imagen.length > MAX_IMAGEN_BYTES * 1.37;
 
 class ProductoController {
-    static createProducto = async(req, res) => {
+    static createProducto = async (req, res) => {
         try {
             const datos = req.body;
             if (imagenDemasiadoGrande(datos.imagen)) return res.status(413).send({ message: "La imagen es demasiado grande" });
@@ -19,11 +19,12 @@ class ProductoController {
         }
     }
 
-    static obtenerDatos = async(req, res) => {
+    static obtenerDatos = async (req, res) => {
         try {
             const buscarProductos = await Producto.find();
             res.status(200).json(buscarProductos);
         } catch (error) {
+            console.error(error);
             return res.status(400).send({ message: "Error de Conexión" });
         }
     }
@@ -36,7 +37,7 @@ class ProductoController {
             const modificar = await Producto.findByIdAndUpdate(id, modProducto, { returnDocument: 'after' });
             res.status(200).json({ message: "Datos actualizados correctamente", modificar });
         } catch (error) {
-            console.log(error);
+            console.error(error);
             return res.status(400).send({ message: "Error al actualizar el producto" });
         }
     }
@@ -49,6 +50,7 @@ class ProductoController {
             await Extra.updateMany({}, { $pull: { productos: id } });
             res.status(200).json(productoEliminado);
         } catch (error) {
+            console.error(error);
             return res.status(400).send({ message: "Error al eliminar el producto" });
         }
     }

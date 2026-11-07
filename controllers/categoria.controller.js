@@ -1,13 +1,15 @@
 const Categoria = require("../models/categoria.model");
 const Producto = require("../models/producto.model");
 
-// Categorías con las que arranca el menú si la colección está vacía
+// Categorías iniciales para la primera ejecución
 const INICIALES = ['Cafés Calientes', 'Fríos', 'Jugos y Licuados', 'Nuevos Platillos', 'Desayunos Tec'];
 
 class CategoriaController {
     static listar = async (req, res) => {
         try {
-            if ((await Categoria.countDocuments()) === 0) {
+            // Optimización: Verificamos una sola vez o creamos por defecto si está completamente vacío de forma limpia
+            const total = await Categoria.countDocuments();
+            if (total === 0) {
                 await Categoria.insertMany(INICIALES.map((nombre, i) => ({ nombre, orden: i })));
             }
             const categorias = await Categoria.find().sort({ orden: 1, createdAt: 1 });
@@ -22,7 +24,6 @@ class CategoriaController {
         try {
             const nombre = req.body.nombre?.trim();
             if (!nombre) return res.status(400).send({ message: "El nombre es obligatorio" });
-
             const ultima = await Categoria.findOne().sort({ orden: -1 });
             const nueva = await Categoria.create({
                 nombre,
@@ -43,12 +44,12 @@ class CategoriaController {
             const cambios = {};
             if (req.body.nombre !== undefined) cambios.nombre = String(req.body.nombre).trim();
             if (req.body.visible !== undefined) cambios.visible = req.body.visible;
-
+            
             const anterior = await Categoria.findById(id);
             if (!anterior) return res.status(404).send({ message: "La categoría no existe" });
-
+            
             const actualizada = await Categoria.findByIdAndUpdate(id, cambios, { returnDocument: 'after' });
-
+            
             // Los productos guardan el nombre de su categoría: si se renombra, se actualizan también
             if (cambios.nombre && cambios.nombre !== anterior.nombre) {
                 await Producto.updateMany({ categoria: anterior.nombre }, { categoria: cambios.nombre });
@@ -81,7 +82,7 @@ class CategoriaController {
             const { id } = req.params;
             const categoria = await Categoria.findById(id);
             if (!categoria) return res.status(404).send({ message: "La categoría no existe" });
-
+            
             const enUso = await Producto.countDocuments({ categoria: categoria.nombre });
             if (enUso > 0) {
                 return res.status(400).send({ message: `La categoría tiene ${enUso} productos. Muévelos o elimínalos primero` });

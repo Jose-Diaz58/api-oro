@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Solo existe un documento de configuración para todo el negocio
 const configuracionSchema = new mongoose.Schema({
   nombre: { type: String, default: 'Grano de Oro Café Restaurant' },
   sucursal: { type: String, default: 'Sucursal Tec' },
