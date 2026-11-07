@@ -1,57 +1,115 @@
 const Producto = require("../models/producto.model");
-const Extra = require("../models/extra.model");
+const cloudinary = require("../config/cloudinary");
+const streamifier = require('streamifier'); // Útil para subir desde buffer
 
-// Imágenes subidas como archivo se guardan como data URL; se limita su tamaño para no saturar la base de datos
-const MAX_IMAGEN_BYTES = 300 * 1024;
-const imagenDemasiadoGrande = (imagen) =>
-    typeof imagen === 'string' && imagen.startsWith('data:') && imagen.length > MAX_IMAGEN_BYTES * 1.37;
+// Función auxiliar para subir buffers a Cloudinary mediante stream
+const subirACloudinary = (buffer) => {
+    return new Promise((resolve, reject) => {
+        let stream = cloudinary.uploader.upload_stream(
+            { folder: "grano-de-oro" },
+            (error, result) => {
+                if (result) {
+                    resolve(result);
+                } else {
+                    reject(error);
+                }
+            }
+        );
+        streamifier.createReadStream(buffer).pipe(stream);
+    });
+};
 
 class ProductoController {
-    static createProducto = async (req, res) => {
-        try {
-            const datos = req.body;
-            if (imagenDemasiadoGrande(datos.imagen)) return res.status(413).send({ message: "La imagen es demasiado grande" });
-            const newProducto = await Producto.create(datos);
-            res.status(200).json(newProducto);
-        } catch (error) {
-            console.error(error);
-            return res.status(400).send({ message: "Error al crear el producto" });
-        }
-    }
-
+    
+    // Obtener / buscar productos
     static obtenerDatos = async (req, res) => {
         try {
-            const buscarProductos = await Producto.find();
-            res.status(200).json(buscarProductos);
+            const { q } = req.query;
+            const query = q ? { nombre: { $regex: q, $options: 'i' } } : {};
+            const productos = await Producto.find(query);
+            res.status(200).json(productos);
         } catch (error) {
             console.error(error);
-            return res.status(400).send({ message: "Error de Conexión" });
+            res.status(400).send({ message: "Error al obtener los productos" });
         }
     }
 
+    // Crear producto subiendo la imagen a Cloudinary
+    static crearProducto = async (req, res) => {
+        try {
+            let imagenUrl = "";
+
+            // Si el frontend mandó un archivo a través de multipart/form-data
+            if (req.file) {
+                const resultado = await subirACloudinary(req.file.buffer);
+                imagenUrl = resultado.secure_url; // URL limpia de Cloudinary
+            } else if (req.body.imagen) {
+                // Si mandan una URL externa o texto plano
+                imagenUrl = req.body.imagen;
+            }
+
+            const nuevoProductoData = {
+                ...req.body,
+                variantes: req.body.variantes ? JSON.parse(req.body.variantes) : [],
+                imagen: imagenUrl // Guardamos SOLAMENTE el link en MongoDB
+            };
+
+            const nuevoProducto = await Producto.create(nuevoProductoData);
+            res.status(201).json(nuevoProducto);
+        } catch (error) {
+            console.error(error);
+            res.status(400).send({ message: "Error al crear el producto y subir la imagen" });
+        }
+    }
+
+    // Actualizar producto y reemplazar la imagen en Cloudinary si se sube una nueva
     static actualizarProducto = async (req, res) => {
         try {
             const { id } = req.params;
-            const modProducto = req.body;
-            if (imagenDemasiadoGrande(modProducto.imagen)) return res.status(413).send({ message: "La imagen es demasiado grande" });
-            const modificar = await Producto.findByIdAndUpdate(id, modProducto, { returnDocument: 'after' });
-            res.status(200).json({ message: "Datos actualizados correctamente", modificar });
+            const productoAnterior = await Producto.findById(id);
+
+            if (!productoAnterior) {
+                return res.status(404).send({ message: "Producto no encontrado" });
+            }
+
+            let imagenUrl = productoAnterior.imagen;
+
+            // Si se seleccionó una nueva imagen en el formulario
+            if (req.file) {
+                const resultado = await subirACloudinary(req.file.buffer);
+                imagenUrl = resultado.secure_url;
+            } else if (req.body.imagen) {
+                imagenUrl = req.body.imagen;
+            }
+
+            const datosActualizados = {
+                ...req.body,
+                ...(req.body.variantes && { variantes: JSON.parse(req.body.variantes) }),
+                imagen: imagenUrl
+            };
+
+            const productoActualizado = await Producto.findByIdAndUpdate(id, datosActualizados, { returnDocument: 'after' });
+            res.status(200).json(productoActualizado);
         } catch (error) {
             console.error(error);
-            return res.status(400).send({ message: "Error al actualizar el producto" });
+            res.status(400).send({ message: "Error al actualizar el producto" });
         }
     }
 
+    // Eliminar producto
     static eliminarProducto = async (req, res) => {
         try {
             const { id } = req.params;
             const productoEliminado = await Producto.findByIdAndDelete(id);
-            // Quita el producto de los extras que lo tenían asignado
-            await Extra.updateMany({}, { $pull: { productos: id } });
-            res.status(200).json(productoEliminado);
+
+            if (!productoEliminado) {
+                return res.status(404).send({ message: "Producto no encontrado" });
+            }
+
+            res.status(200).json({ message: "Producto eliminado correctamente" });
         } catch (error) {
             console.error(error);
-            return res.status(400).send({ message: "Error al eliminar el producto" });
+            res.status(400).send({ message: "Error al eliminar el producto" });
         }
     }
 }
