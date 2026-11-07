@@ -3,6 +3,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit"); // <-- 1. Importamos el rate limiter
+const multer = require("multer"); // <-- Importamos multer para poder leer sus errores
 
 // Importamos rutas
 const ProductoRouter = require("./routes/producto.routes");
@@ -41,5 +42,24 @@ app.use("/api", UsuarioRouter);
 app.use("/api", CategoriaRouter);
 app.use("/api", ExtraRouter);
 app.use("/api", ConfiguracionRouter);
+
+// <-- 3. MIDDLEWARE GLOBAL DE ERRORES (Debe ir siempre DESPUÉS de las rutas) -->
+app.use((err, req, res, next) => {
+    // Si el error es de Multer y es por exceder el límite de peso
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ 
+            message: "La imagen es muy pesada. Por favor, sube una foto más ligera." 
+        });
+    }
+    
+    // Si es cualquier otro error interno de Multer
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: "Error al subir la imagen: " + err.message });
+    }
+
+    // Para cualquier otro error genérico en el servidor
+    console.error(err);
+    res.status(500).json({ message: "Error interno del servidor" });
+});
 
 module.exports = app;
