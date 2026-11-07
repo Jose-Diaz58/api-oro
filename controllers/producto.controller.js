@@ -1,6 +1,33 @@
 const Producto = require("../models/producto.model");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require('streamifier'); // Útil para subir desde buffer
+const multer = require('multer'); // Necesario para detectar MulterError en los catch
+
+const esDataUrl = (v) => typeof v === 'string' && v.startsWith('data:image/');
+
+// Sube una imagen en base64 (data URL) a Cloudinary. El frontend la envía así tras comprimirla.
+const subirDataUrlACloudinary = (dataUrl) =>
+    cloudinary.uploader.upload(dataUrl, {
+        folder: "grano-de-oro",
+        format: "webp",
+        quality: "auto"
+    });
+
+// Borra de Cloudinary una imagen anterior (si era de Cloudinary)
+const borrarImagenCloudinary = async (url) => {
+    if (!url || !url.includes("cloudinary.com")) return;
+    try {
+        const partes = url.split('/');
+        const archivoConExt = partes[partes.length - 1];
+        const nombreArchivo = archivoConExt.substring(0, archivoConExt.lastIndexOf('.'));
+        const carpeta = partes[partes.length - 2];
+        if (nombreArchivo && carpeta) {
+            await cloudinary.uploader.destroy(`${carpeta}/${nombreArchivo}`);
+        }
+    } catch (err) {
+        console.error("Aviso: No se pudo eliminar la imagen vieja de Cloudinary", err);
+    }
+};
 
 // Función auxiliar para subir buffers a Cloudinary y forzar optimización WebP automática
 const subirACloudinary = (buffer) => {
@@ -46,6 +73,9 @@ class ProductoController {
             if (req.file) {
                 const resultado = await subirACloudinary(req.file.buffer);
                 imagenUrl = resultado.secure_url; 
+            } else if (esDataUrl(req.body.imagen)) {
+                const resultado = await subirDataUrlACloudinary(req.body.imagen);
+                imagenUrl = resultado.secure_url;
             } else if (req.body.imagen) {
                 imagenUrl = req.body.imagen;
             }
@@ -87,20 +117,11 @@ class ProductoController {
             if (req.file) {
                 const resultado = await subirACloudinary(req.file.buffer);
                 imagenUrl = resultado.secure_url;
-
-                if (productoAnterior.imagen && productoAnterior.imagen.includes("cloudinary.com")) {
-                    try {
-                        const partes = productoAnterior.imagen.split('/');
-                        const archivoConExt = partes[partes.length - 1];
-                        const nombreArchivo = archivoConExt.substring(0, archivoConExt.lastIndexOf('.'));
-                        const carpeta = partes[partes.length - 2];
-                        if (nombreArchivo && carpeta) {
-                            await cloudinary.uploader.destroy(`${carpeta}/${nombreArchivo}`);
-                        }
-                    } catch (err) {
-                        console.error("Aviso: No se pudo eliminar la imagen vieja de Cloudinary", err);
-                    }
-                }
+                await borrarImagenCloudinary(productoAnterior.imagen);
+            } else if (esDataUrl(req.body.imagen)) {
+                const resultado = await subirDataUrlACloudinary(req.body.imagen);
+                imagenUrl = resultado.secure_url;
+                await borrarImagenCloudinary(productoAnterior.imagen);
             } else if (req.body.imagen) {
                 imagenUrl = req.body.imagen;
             }
