@@ -2,14 +2,14 @@ const Producto = require("../models/producto.model");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require('streamifier'); // Útil para subir desde buffer
 
-// Función auxiliar para subir buffers a Cloudinary mediante stream
+// Función auxiliar para subir buffers a Cloudinary y forzar optimización WebP automática
 const subirACloudinary = (buffer) => {
     return new Promise((resolve, reject) => {
         let stream = cloudinary.uploader.upload_stream(
             { 
                 folder: "grano-de-oro",
-                format: "webp", // <--- Forzar conversión a WebP automáticamente
-                quality: "auto"  // <--- Optimización automática de calidad sin perder nitidez
+                format: "webp", // Convierte automáticamente a formato WebP ligero
+                quality: "auto" // Optimiza la calidad sin perder nitidez visual
             },
             (error, result) => {
                 if (result) {
@@ -22,6 +22,7 @@ const subirACloudinary = (buffer) => {
         streamifier.createReadStream(buffer).pipe(stream);
     });
 };
+
 class ProductoController {
     
     // Obtener / buscar productos
@@ -37,24 +38,22 @@ class ProductoController {
         }
     }
 
-    // Crear producto subiendo la imagen a Cloudinary
+    // Crear producto subiendo la imagen a Cloudinary en WebP
     static crearProducto = async (req, res) => {
         try {
             let imagenUrl = "";
 
-            // Si el frontend mandó un archivo a través de multipart/form-data
             if (req.file) {
                 const resultado = await subirACloudinary(req.file.buffer);
-                imagenUrl = resultado.secure_url; // URL limpia de Cloudinary
+                imagenUrl = resultado.secure_url; 
             } else if (req.body.imagen) {
-                // Si mandan una URL externa o texto plano
                 imagenUrl = req.body.imagen;
             }
 
             const nuevoProductoData = {
                 ...req.body,
                 variantes: req.body.variantes ? JSON.parse(req.body.variantes) : [],
-                imagen: imagenUrl // Guardamos SOLAMENTE el link en MongoDB
+                imagen: imagenUrl 
             };
 
             const nuevoProducto = await Producto.create(nuevoProductoData);
@@ -65,7 +64,7 @@ class ProductoController {
         }
     }
 
-    // Actualizar producto y reemplazar la imagen en Cloudinary si se sube una nueva
+    // Actualizar producto, reemplazar imagen en WebP y borrar la anterior de Cloudinary
     static actualizarProducto = async (req, res) => {
         try {
             const { id } = req.params;
@@ -77,20 +76,24 @@ class ProductoController {
 
             let imagenUrl = productoAnterior.imagen;
 
-            // Si se seleccionó una nueva imagen en el formulario
+            // Si se seleccionó una nueva imagen en el archivo
             if (req.file) {
-                // 1. Si el producto ya tenía una imagen previa en Cloudinary, la borramos
+                // 1. Intentamos borrar la imagen anterior de Cloudinary de forma segura
                 if (productoAnterior.imagen && productoAnterior.imagen.includes("cloudinary.com")) {
-                    // Extraemos el public_id de la URL de Cloudinary
-                    const partesUrl = productoAnterior.imagen.split('/');
-                    const nombreConExtension = partesUrl[partesUrl.length - 1];
-                    const publicIdCarpeta = partesUrl[partesUrl.length - 2]; // carpeta "grano-de-oro"
-                    const publicId = `${publicIdCarpeta}/${nombreConExtension.split('.')[0]}`;
-                    
-                    await cloudinary.uploader.destroy(publicId).catch(err => console.error("Error al borrar imagen anterior:", err));
+                    try {
+                        const partes = productoAnterior.imagen.split('/');
+                        const archivoConExt = partes[partes.length - 1];
+                        const nombreArchivo = archivoConExt.substring(0, archivoConExt.lastIndexOf('.'));
+                        const carpeta = partes[partes.length - 2];
+                        const publicId = `${carpeta}/${nombreArchivo}`;
+                        
+                        await cloudinary.uploader.destroy(publicId);
+                    } catch (err) {
+                        console.error("No se pudo borrar la imagen anterior de Cloudinary (continuamos):", err);
+                    }
                 }
 
-                // 2. Subimos la nueva imagen (aprovechando también para forzar WebP si aplicaste el cambio anterior)
+                // 2. Subimos la nueva imagen optimizada a WebP
                 const resultado = await subirACloudinary(req.file.buffer);
                 imagenUrl = resultado.secure_url;
             } else if (req.body.imagen) {
@@ -103,10 +106,11 @@ class ProductoController {
                 imagen: imagenUrl
             };
 
+            // Usamos returnDocument: 'after' para evitar advertencias de Mongoose
             const productoActualizado = await Producto.findByIdAndUpdate(id, datosActualizados, { returnDocument: 'after' });
             res.status(200).json(productoActualizado);
         } catch (error) {
-            console.error(error);
+            console.error("Error detallado al actualizar:", error);
             res.status(400).send({ message: "Error al actualizar el producto" });
         }
     }
