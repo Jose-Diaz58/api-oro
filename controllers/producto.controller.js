@@ -60,6 +60,14 @@ class ProductoController {
             res.status(201).json(nuevoProducto);
         } catch (error) {
             console.error(error);
+
+            // Manejo amigable si la imagen pesa demasiado al crear
+            if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ 
+                    message: "La imagen es muy pesada. Por favor, sube una imagen más ligera." 
+                });
+            }
+
             res.status(400).send({ message: "Error al crear el producto y subir la imagen" });
         }
     }
@@ -76,13 +84,10 @@ class ProductoController {
 
             let imagenUrl = productoAnterior.imagen;
 
-            // Si se seleccionó una nueva imagen en el archivo
             if (req.file) {
-                // Subimos la nueva imagen optimizada a WebP primero
                 const resultado = await subirACloudinary(req.file.buffer);
                 imagenUrl = resultado.secure_url;
 
-                // Intentamos borrar la anterior en segundo plano (si falla, no afecta al usuario)
                 if (productoAnterior.imagen && productoAnterior.imagen.includes("cloudinary.com")) {
                     try {
                         const partes = productoAnterior.imagen.split('/');
@@ -110,6 +115,14 @@ class ProductoController {
             res.status(200).json(productoActualizado);
         } catch (error) {
             console.error("Error detallado al actualizar:", error);
+
+            // Manejo amigable si la imagen pesa demasiado al actualizar
+            if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ 
+                    message: "La imagen es muy pesada. Por favor, sube una imagen más ligera." 
+                });
+            }
+
             res.status(400).send({ message: "Error al actualizar el producto" });
         }
     }
