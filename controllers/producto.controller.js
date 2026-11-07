@@ -78,24 +78,24 @@ class ProductoController {
 
             // Si se seleccionó una nueva imagen en el archivo
             if (req.file) {
-                // 1. Intentamos borrar la imagen anterior de Cloudinary de forma segura
+                // Subimos la nueva imagen optimizada a WebP primero
+                const resultado = await subirACloudinary(req.file.buffer);
+                imagenUrl = resultado.secure_url;
+
+                // Intentamos borrar la anterior en segundo plano (si falla, no afecta al usuario)
                 if (productoAnterior.imagen && productoAnterior.imagen.includes("cloudinary.com")) {
                     try {
                         const partes = productoAnterior.imagen.split('/');
                         const archivoConExt = partes[partes.length - 1];
                         const nombreArchivo = archivoConExt.substring(0, archivoConExt.lastIndexOf('.'));
                         const carpeta = partes[partes.length - 2];
-                        const publicId = `${carpeta}/${nombreArchivo}`;
-                        
-                        await cloudinary.uploader.destroy(publicId);
+                        if (nombreArchivo && carpeta) {
+                            await cloudinary.uploader.destroy(`${carpeta}/${nombreArchivo}`);
+                        }
                     } catch (err) {
-                        console.error("No se pudo borrar la imagen anterior de Cloudinary (continuamos):", err);
+                        console.error("Aviso: No se pudo eliminar la imagen vieja de Cloudinary", err);
                     }
                 }
-
-                // 2. Subimos la nueva imagen optimizada a WebP
-                const resultado = await subirACloudinary(req.file.buffer);
-                imagenUrl = resultado.secure_url;
             } else if (req.body.imagen) {
                 imagenUrl = req.body.imagen;
             }
@@ -106,7 +106,6 @@ class ProductoController {
                 imagen: imagenUrl
             };
 
-            // Usamos returnDocument: 'after' para evitar advertencias de Mongoose
             const productoActualizado = await Producto.findByIdAndUpdate(id, datosActualizados, { returnDocument: 'after' });
             res.status(200).json(productoActualizado);
         } catch (error) {
