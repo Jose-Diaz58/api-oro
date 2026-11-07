@@ -6,7 +6,11 @@ const streamifier = require('streamifier'); // Útil para subir desde buffer
 const subirACloudinary = (buffer) => {
     return new Promise((resolve, reject) => {
         let stream = cloudinary.uploader.upload_stream(
-            { folder: "grano-de-oro" },
+            { 
+                folder: "grano-de-oro",
+                format: "webp", // <--- Forzar conversión a WebP automáticamente
+                quality: "auto"  // <--- Optimización automática de calidad sin perder nitidez
+            },
             (error, result) => {
                 if (result) {
                     resolve(result);
@@ -18,7 +22,6 @@ const subirACloudinary = (buffer) => {
         streamifier.createReadStream(buffer).pipe(stream);
     });
 };
-
 class ProductoController {
     
     // Obtener / buscar productos
@@ -76,6 +79,18 @@ class ProductoController {
 
             // Si se seleccionó una nueva imagen en el formulario
             if (req.file) {
+                // 1. Si el producto ya tenía una imagen previa en Cloudinary, la borramos
+                if (productoAnterior.imagen && productoAnterior.imagen.includes("cloudinary.com")) {
+                    // Extraemos el public_id de la URL de Cloudinary
+                    const partesUrl = productoAnterior.imagen.split('/');
+                    const nombreConExtension = partesUrl[partesUrl.length - 1];
+                    const publicIdCarpeta = partesUrl[partesUrl.length - 2]; // carpeta "grano-de-oro"
+                    const publicId = `${publicIdCarpeta}/${nombreConExtension.split('.')[0]}`;
+                    
+                    await cloudinary.uploader.destroy(publicId).catch(err => console.error("Error al borrar imagen anterior:", err));
+                }
+
+                // 2. Subimos la nueva imagen (aprovechando también para forzar WebP si aplicaste el cambio anterior)
                 const resultado = await subirACloudinary(req.file.buffer);
                 imagenUrl = resultado.secure_url;
             } else if (req.body.imagen) {
