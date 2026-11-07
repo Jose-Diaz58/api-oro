@@ -16,20 +16,27 @@ const ConfiguracionRouter = require("./routes/configuracion.routes");
 
 const app = express();
 
+// Render (y Vercel) ponen un proxy delante: sin esto TODOS los usuarios comparten la misma IP (la del proxy)
+// y el limitador los cuenta juntos. Con '1' se usa la IP real del cliente (X-Forwarded-For).
+app.set("trust proxy", 1);
+
 app.use(cors());
 app.use(compression());
 
-// <-- 2. Configuramos el límite de peticiones (ej: máx. 300 peticiones cada 15 minutos por IP)
-const limiter = rateLimit({
+// Límite de peticiones por IP. Las lecturas (GET) tienen un tope alto porque el menú se refresca solo;
+// las escrituras (POST/PUT/DELETE, login, pedidos) mantienen un tope estricto.
+const opcionesLimite = {
     windowMs: 15 * 60 * 1000, // 15 minutos
-    max: 300, // Límite de peticiones por IP
-    standardHeaders: true, // Retorna info de límite en las cabeceras `RateLimit-*`
-    legacyHeaders: false, // Desactiva las cabeceras `X-RateLimit-*`
+    standardHeaders: true,
+    legacyHeaders: false,
     message: { message: "Demasiadas peticiones desde esta IP, por favor intenta más tarde." }
-});
+};
 
-// Aplicamos el limitador a todas las rutas que empiezan con /api/
-app.use("/api/", limiter);
+const limiterLecturas = rateLimit({ ...opcionesLimite, max: 3000, skip: (req) => req.method !== "GET" });
+const limiterEscrituras = rateLimit({ ...opcionesLimite, max: 300, skip: (req) => req.method === "GET" || req.method === "OPTIONS" });
+
+app.use("/api/", limiterLecturas);
+app.use("/api/", limiterEscrituras);
 
 app.use(bodyParser.json({ limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
