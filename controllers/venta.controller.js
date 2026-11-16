@@ -3,24 +3,51 @@ const Venta = require("../models/venta.model");
 const ESTADOS = ['Nuevo', 'Preparando', 'Listo', 'Entregado'];
 
 // Devuelve el rango [inicio, fin) de un día "YYYY-MM-DD"
+const Contador = require("../models/contador.model");
+
+// Chiapas y Tabasco están en UTC-6 todo el año (México ya no usa horario de verano)
 const rangoDelDia = (fecha) => {
-    const inicio = new Date(fecha);
-    const fin = new Date(fecha);
-    fin.setDate(fin.getDate() + 1);
+    const inicio = new Date(`${fecha}T00:00:00-06:00`);
+    const fin = new Date(inicio.getTime() + 24 * 60 * 60 * 1000);
     return { inicio, fin };
 };
 
-class VentaController {
-    static registrarVenta = async (req, res) => {
-        try {
-            const dVenta = req.body;
-            const nuevaVenta = await Venta.create(dVenta);
-            res.status(200).json(nuevaVenta);
-        } catch (error) {
-            console.error(error);
-            res.status(400).send({ message: "Error al registrar la venta" });
-        }
+// 'YYYY-MM-DD' de hoy en hora de México
+const hoyMX = () =>
+    new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
+
+const siguienteFolio = async (dia) => {
+    const intentar = () =>
+        Contador.findOneAndUpdate(
+            { _id: `folio-${dia}` },
+            { $inc: { seq: 1 } },
+            { returnDocument: 'after', upsert: true }
+        );
+    try {
+        return (await intentar()).seq;
+    } catch (error) {
+        if (error.code === 11000) return (await intentar()).seq; // choque raro al crear el contador del día
+        throw error;
     }
+};
+//registrarveta modificado
+class VentaController {
+   static registrarVenta = async (req, res) => {
+    try {
+        const { cliente, tipoServicio, mesa, notas, pago, productos, total } = req.body;
+        const diaFolio = hoyMX();
+        const folio = await siguienteFolio(diaFolio);
+        const nuevaVenta = await Venta.create({
+            cliente, tipoServicio, mesa, notas, pago, productos, total,
+            folio, diaFolio,
+        });
+        res.status(200).json(nuevaVenta);
+    } catch (error) {
+        console.error(error);
+        res.status(400).send({ message: "Error al registrar la venta" });
+    }
+
+}
 
     // Lista optimizada con paginación real: ?fecha=2026-10-15 (opcional) &pagina=1 &limite=20
     static listarVentas = async (req, res) => {
@@ -93,6 +120,22 @@ class VentaController {
             res.status(400).send({ message: "Error al eliminar las ventas" });
         }
     }
+    // Público: solo devuelve lo mínimo (sin nombre del cliente ni notas)
+static seguimiento = async (req, res) => {
+    try {
+        const folio = parseInt(String(req.params.folio).replace(/\D/g, ''), 10);
+        if (!folio) return res.status(400).send({ message: "Folio no válido" });
+
+        const venta = await Venta.findOne({ diaFolio: hoyMX(), folio })
+            .select('-_id folio estado tipoServicio createdAt productos.nombre productos.cantidad');
+        if (!venta) return res.status(404).send({ message: "No encontramos un pedido con ese folio" });
+
+        res.status(200).json(venta);
+    } catch (error) {
+        console.error(error);
+        res.status(400).send({ message: "Error al consultar el pedido" });
+    }
+}
 }
 
 module.exports = VentaController;

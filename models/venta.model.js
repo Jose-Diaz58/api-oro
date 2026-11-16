@@ -24,10 +24,16 @@ const ventaSchema = new mongoose.Schema({
     enum: ['Nuevo', 'Preparando', 'Listo', 'Entregado'],
     default: 'Nuevo',
     index: true // Indexado para agilizar filtros de estado en cocina/admin
-  }
+  },
+  folio: { type: Number },
+  diaFolio: { type: String }, // 'YYYY-MM-DD' en hora de México
 }, { timestamps: true });
 
 // Índice compuesto para acelerar las consultas por rangos de fecha (muy usado en reportes y listados diarios)
 ventaSchema.index({ createdAt: -1 });
+ventaSchema.index(
+  { diaFolio: 1, folio: 1 },
+  { unique: true, partialFilterExpression: { folio: { $type: 'number' } } }
+);
 
 module.exports = mongoose.model('Venta', ventaSchema);
